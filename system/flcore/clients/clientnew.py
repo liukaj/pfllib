@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from flcore.clients.clientbase import Client
 
 
-class clientFML(Client):
+class clientnew(Client):
     def __init__(self, args, id, train_samples, test_samples, **kwargs):
         super().__init__(args, id, train_samples, test_samples, **kwargs)
 
@@ -22,7 +22,10 @@ class clientFML(Client):
         )
 
         self.KL = nn.KLDivLoss()
-
+        # === 修改 ===
+        self.teacher_model = None  # 历史平均教师模型
+        # === 修改 ===
+        
     def train(self):
         trainloader = self.load_train_data()
         # self.model.to(self.device)
@@ -46,9 +49,19 @@ class clientFML(Client):
                     time.sleep(0.1 * np.abs(np.random.rand()))
                 output = self.model(x)
                 output_g = self.global_model(x)
-                loss = self.loss(output, y) * self.alpha + self.KL(F.log_softmax(output, dim=1), F.softmax(output_g, dim=1)) * (1-self.alpha)
-                loss_g = self.loss(output_g, y) * self.beta + self.KL(F.log_softmax(output_g, dim=1), F.softmax(output, dim=1)) * (1-self.beta)
-
+                # === 修改 ===
+                loss_local = self.loss(output, y)
+                loss_global = self.loss(output_g, y)
+                eps = 1e-8
+                adptive_weight = 1.0 / (loss_local.item() + loss_global.item() + eps)
+                # === 修改 ===
+                
+                loss = self.loss(output, y) * self.alpha + adptive_weight*self.KL(F.log_softmax(output, dim=1), F.softmax(output_g, dim=1)) * (1-self.alpha)
+                loss_g = self.loss(output_g, y) * self.beta + adptive_weight*self.KL(F.log_softmax(output_g, dim=1), F.softmax(output, dim=1)) * (1-self.beta)
+                if self.teacher_model is not None:
+                    output_teacher = self.teacher_model(x)
+                    loss_g += self.KL(F.log_softmax(output, dim=1), F.softmax(output_teacher, dim=1)) * 0.5  #系数可调
+                
                 self.optimizer.zero_grad()
                 self.optimizer_g.zero_grad()
                 loss.backward(retain_graph=True)
@@ -71,7 +84,15 @@ class clientFML(Client):
     def set_parameters(self, global_model):
         for new_param, old_param in zip(global_model.parameters(), self.global_model.parameters()):
             old_param.data = new_param.data.clone()
-
+    #修改
+    def set_teacher_parameters(self, model):
+      if model is not None:
+          self.teacher_model = copy.deepcopy(model)
+          for param in self.teacher_model.parameters():
+              param.requires_grad = False  # 确保不参与反向传播
+      else:
+          self.teacher_model = None            
+            #修改
     def test_metrics(self):
         testloaderfull = self.load_test_data()
         # self.model = self.load_model('model')
@@ -94,7 +115,7 @@ class clientFML(Client):
                 test_num += y.shape[0]
         
         return test_acc, test_num, 0
-
+#未改动
     def train_metrics(self):
         trainloader = self.load_train_data()
         # self.model = self.load_model('model')

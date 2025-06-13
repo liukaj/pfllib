@@ -16,16 +16,17 @@ dependencies:
   - seaborn
   - matplotlib
   - click
-  - pip:  # manually install with mirror URLs if a timeout occurs
-    - torch==2.0.1
-    - torchaudio
-    - torchtext
-    - torchvision
-    - calmsize
-    - memory-profiler
-    - portalocker
-    - cvxpy
-    - higher
-    - diffusers
-    - accelerate
-    - transformers
+  - pip:
+      # NOTE: Install PyTorch with CUDA 11.7 support
+      - torch==2.0.1+cu117
+      - torchvision==0.15.2+cu117
+      - torchaudio==2.0.2+cu117
+      - torchtext
+      - calmsize
+      - memory-profiler
+      - portalocker
+      - cvxpy
+      - higher
+      - diffusers
+      - accelerate
+      - transformers

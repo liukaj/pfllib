@@ -48,6 +48,7 @@ from flcore.servers.servercac import FedCAC
 from flcore.servers.serverda import PFL_DA
 from flcore.servers.serverlc import FedLC
 from flcore.servers.serveras import FedAS
+from flcore.servers.servernew import Fednew
 
 from flcore.trainmodel.models import *
 
@@ -360,6 +361,8 @@ def run(args):
             args.model.fc = nn.Identity()
             args.model = BaseHeadSplit(args.model, args.head)
             server = FedAS(args, i)
+        elif args.algorithm == 'Fednew':
+            server = Fednew(args, i)
             
         else:
             raise NotImplementedError
