@@ -48,7 +48,9 @@ class Fednew(Server):
         plt.grid(True)
         plt.legend()
         plt.ylim(0, 1)  # 0-100%范围
-        plt.show()    
+        plt.savefig("final_global_accuracy.png", dpi=300)
+        plt.close()
+        print("✅ Saved figure: final_global_accuracy.png")
 
     def train(self):
         for i in range(self.global_rounds+1):
@@ -82,9 +84,6 @@ class Fednew(Server):
                 break
 #修改
         self.plot_test_accuracy()
-        plt.savefig("final_global_accuracy.png", dpi=300)
-        plt.close()
-        print("✅ Saved figure: final_global_accuracy.png")
         print("\nBest accuracy.")
         # self.print_(max(self.rs_test_acc), max(
         #     self.rs_train_acc), min(self.rs_train_loss))
