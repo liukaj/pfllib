@@ -7,6 +7,8 @@ import time
 import random
 from utils.data_utils import read_client_data
 from utils.dlg import DLG
+#修改
+import matplotlib.pyplot as plt
 
 
 class Server(object):
@@ -368,3 +370,24 @@ class Server(object):
         ids = [c.id for c in self.new_clients]
 
         return ids, num_samples, tot_correct, tot_auc
+#修改
+    def plot_test_accuracy(server_obj):
+        """
+        server_obj: 你的 Server 类实例
+        """
+        if len(server_obj.rs_test_acc) == 0:
+            print("还没有 test accuracy 数据")
+            return
+        
+        rounds = list(range(1, len(server_obj.rs_test_acc) + 1))
+        accs = server_obj.rs_test_acc
+    
+        plt.figure(figsize=(8,5))
+        plt.plot(rounds, accs, marker='o', linestyle='-', color='b', label='Test Accuracy')
+        plt.xlabel("Global Round")
+        plt.ylabel("Test Accuracy")
+        plt.title("Global Model Test Accuracy over Rounds")
+        plt.grid(True)
+        plt.legend()
+        plt.ylim(0, 1)  # 0-100%范围
+        plt.show()
