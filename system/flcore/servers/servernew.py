@@ -39,6 +39,7 @@ class Fednew(Server):
         
         rounds = list(range(1, len(self.rs_test_acc) + 1))
         acces = [float(a) for a in self.rs_test_acc]
+        print(acces)
         plt.figure(figsize=(8,5))
         plt.plot(rounds, acces, marker='o', linestyle='-', color='b', label='Test Accuracy')
         plt.xlabel("Global Round")
