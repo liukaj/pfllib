@@ -38,10 +38,10 @@ class Fednew(Server):
             return
         
         rounds = list(range(1, len(self.rs_test_acc) + 1))
-        accs = self.rs_test_acc
+        acces = self.rs_test_acc
     
         plt.figure(figsize=(8,5))
-        plt.plot(rounds, accs, marker='o', linestyle='-', color='b', label='Test Accuracy')
+        plt.plot(rounds, acces, marker='o', linestyle='-', color='b', label='Test Accuracy')
         plt.xlabel("Global Round")
         plt.ylabel("Test Accuracy")
         plt.title("Global Model Test Accuracy over Rounds")
