@@ -5,6 +5,8 @@ import time
 from flcore.clients.clientnew import clientnew
 from flcore.servers.serverbase import Server
 from threading import Thread
+import matplotlib.pyplot as plt
+
 
 
 class Fednew(Server):
@@ -25,7 +27,27 @@ class Fednew(Server):
         self.avg_history_model_state = None  # 初始化累计平均模型
         #修改
         
+#修改
+    def plot_test_accuracy(self):
+        """
+        server_obj: 你的 Server 类实例
+        """
+        if len(self.rs_test_acc) == 0:
+            print("还没有 test accuracy 数据")
+            return
+        
+        rounds = list(range(1, len(self.rs_test_acc) + 1))
+        accs = self.rs_test_acc
     
+        plt.figure(figsize=(8,5))
+        plt.plot(rounds, accs, marker='o', linestyle='-', color='b', label='Test Accuracy')
+        plt.xlabel("Global Round")
+        plt.ylabel("Test Accuracy")
+        plt.title("Global Model Test Accuracy over Rounds")
+        plt.grid(True)
+        plt.legend()
+        plt.ylim(0, 1)  # 0-100%范围
+        plt.show()    
 
     def train(self):
         for i in range(self.global_rounds+1):
@@ -59,6 +81,9 @@ class Fednew(Server):
                 break
 #修改
         self.plot_test_accuracy()
+        plt.savefig("final_global_accuracy.png", dpi=300)
+        plt.close()
+        print("✅ Saved figure: final_global_accuracy.png")
         print("\nBest accuracy.")
         # self.print_(max(self.rs_test_acc), max(
         #     self.rs_train_acc), min(self.rs_train_loss))
