@@ -29,6 +29,7 @@ class Fednew(Server):
         
 #修改
     def plot_test_accuracy(self):
+        print("🔥 plot_test_accuracy CALLED")
         """
         server_obj: 你的 Server 类实例
         """
