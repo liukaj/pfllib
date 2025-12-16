@@ -129,8 +129,8 @@ class Fednew(Server):
         # use 1/len(self.uploaded_models) as the weight for privacy and fairness
         for client_model in self.uploaded_models:
             self.add_parameters(1/len(self.uploaded_models), client_model)
-            
-  def update_avg_history_model(self):
+
+    def update_avg_history_model(self):
         current_state = self.global_model.state_dict()
         self.round += 1
         if self.avg_history_model_state is None:
@@ -143,11 +143,12 @@ class Fednew(Server):
                     current_state[key].float()
                 ) / self.round
 
-  def get_avg_teacher_model(self):
+    def get_avg_teacher_model(self):
         model = copy.deepcopy(self.global_model)
         model.load_state_dict(self.avg_history_model_state)
         return model
-  def send_teachermodels(self):
+
+    def send_teachermodels(self):
         if self.avg_history_model_state is None:
             return
         avg_teacher_model = self.get_avg_teacher_model()
