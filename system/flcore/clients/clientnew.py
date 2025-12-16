@@ -1,146 +1,83 @@
-import copy
-import torch
-import torch.nn as nn
-import numpy as np
-import time
-import torch.nn.functional as F
-from flcore.clients.clientbase import Client
+def train(self):
+    trainloader = self.load_train_data()
+    self.model.train()
+    self.global_model.train()
 
+    start_time = time.time()
+    max_local_epochs = self.local_epochs
+    if self.train_slow:
+        max_local_epochs = np.random.randint(1, max_local_epochs // 2)
 
-class clientnew(Client):
-    def __init__(self, args, id, train_samples, test_samples, **kwargs):
-        super().__init__(args, id, train_samples, test_samples, **kwargs)
+    for epoch in range(max_local_epochs):
+        for i, (x, y) in enumerate(trainloader):
+            # 数据送入 device
+            if isinstance(x, list):
+                x = [xx.to(self.device) for xx in x]
+                x_input = x[0]
+            else:
+                x_input = x.to(self.device)
+            y = y.to(self.device)
 
-        self.alpha = args.alpha
-        self.beta = args.beta
+            # 前向计算
+            output_student = self.model(x_input)
+            output_global = self.global_model(x_input)
 
-        self.global_model = copy.deepcopy(args.model)
-        self.optimizer_g = torch.optim.SGD(self.global_model.parameters(), lr=self.learning_rate)
-        self.learning_rate_scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
-            optimizer=self.optimizer_g, 
-            gamma=args.learning_rate_decay_gamma
-        )
+            # 本地损失
+            loss_local = self.loss(output_student, y)
+            loss_global = self.loss(output_global, y)
 
-        self.KL = nn.KLDivLoss()
-        # === 修改 ===
-        self.teacher_model = None  # 历史平均教师模型
-        # === 修改 ===
-        
-    def train(self):
-        trainloader = self.load_train_data()
-        # self.model.to(self.device)
-        self.model.train()
-        self.global_model.train()
+            # 自适应权重（用 tensor 而不是 .item()）
+            eps = 1e-8
+            adaptive_weight = 1.0 / (loss_local + loss_global + eps)
 
-        start_time = time.time()
+            # 学生模型总 loss
+            loss_student = (
+                self.alpha * loss_local +
+                (1 - self.alpha) * adaptive_weight * self.KL(
+                    F.log_softmax(output_student, dim=1),
+                    F.softmax(output_global, dim=1)
+                )
+            )
 
-        max_local_epochs = self.local_epochs
-        if self.train_slow:
-            max_local_epochs = np.random.randint(1, max_local_epochs // 2)
+            # 加上教师蒸馏
+            if self.teacher_model is not None:
+                output_teacher = self.teacher_model(x_input)
+                loss_student += 0.5 * self.KL(
+                    F.log_softmax(output_student, dim=1),
+                    F.softmax(output_teacher, dim=1)
+                )
 
-        for epoch in range(max_local_epochs):
-            for i, (x, y) in enumerate(trainloader):
-                if type(x) == type([]):
-                    x[0] = x[0].to(self.device)
-                else:
-                    x = x.to(self.device)
-                y = y.to(self.device)
-                if self.train_slow:
-                    time.sleep(0.1 * np.abs(np.random.rand()))
-                output = self.model(x)
-                output_g = self.global_model(x)
-                # === 修改 ===
-                loss_local = self.loss(output, y)
-                loss_global = self.loss(output_g, y)
-                eps = 1e-8
-                adptive_weight = 1.0 / (loss_local.item() + loss_global.item() + eps)
-                # === 修改 ===
-                
-                loss = self.loss(output, y) * self.alpha + adptive_weight*self.KL(F.log_softmax(output, dim=1), F.softmax(output_g, dim=1)) * (1-self.alpha)
-                loss_g = self.loss(output_g, y) * self.beta + adptive_weight*self.KL(F.log_softmax(output_g, dim=1), F.softmax(output, dim=1)) * (1-self.beta)
-                if self.teacher_model is not None:
-                    output_teacher = self.teacher_model(x)
-                    loss_g += self.KL(F.log_softmax(output, dim=1), F.softmax(output_teacher, dim=1)) * 0.5  #系数可调
-                
-                self.optimizer.zero_grad()
-                self.optimizer_g.zero_grad()
-                loss.backward(retain_graph=True)
-                loss_g.backward()
-                # prevent divergency on specifical tasks
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10)
-                torch.nn.utils.clip_grad_norm_(self.global_model.parameters(), 10)
-                self.optimizer.step()
-                self.optimizer_g.step()
+            # 全局模型损失
+            loss_global_total = (
+                self.beta * loss_global +
+                (1 - self.beta) * adaptive_weight * self.KL(
+                    F.log_softmax(output_global, dim=1),
+                    F.softmax(output_student.detach(), dim=1)  # detach 防止梯度干扰学生
+                )
+            )
 
-        # self.model.cpu()
+            # 梯度清零
+            self.optimizer.zero_grad()
+            self.optimizer_g.zero_grad()
 
-        if self.learning_rate_decay:
-            self.learning_rate_scheduler.step()
-            self.learning_rate_scheduler_g.step()
+            # 反向传播
+            loss_student.backward()
+            loss_global_total.backward()
 
-        self.train_time_cost['num_rounds'] += 1
-        self.train_time_cost['total_cost'] += time.time() - start_time
-        
-    def set_parameters(self, global_model):
-        for new_param, old_param in zip(global_model.parameters(), self.global_model.parameters()):
-            old_param.data = new_param.data.clone()
-    #修改
-    def set_teacher_parameters(self, model):
-      if model is not None:
-          self.teacher_model = copy.deepcopy(model)
-          for param in self.teacher_model.parameters():
-              param.requires_grad = False  # 确保不参与反向传播
-      else:
-          self.teacher_model = None            
-            #修改
-    def test_metrics(self):
-        testloaderfull = self.load_test_data()
-        # self.model = self.load_model('model')
-        # self.model.to(self.device)
-        self.model.eval()
+            # 梯度裁剪
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10)
+            torch.nn.utils.clip_grad_norm_(self.global_model.parameters(), 10)
 
-        test_acc = 0
-        test_num = 0
-        
-        with torch.no_grad():
-            for x, y in testloaderfull:
-                if type(x) == type([]):
-                    x[0] = x[0].to(self.device)
-                else:
-                    x = x.to(self.device)
-                y = y.to(self.device)
-                output = self.model(x)
+            # 参数更新
+            self.optimizer.step()
+            self.optimizer_g.step()
 
-                test_acc += (torch.sum(torch.argmax(output, dim=1) == y)).item()
-                test_num += y.shape[0]
-        
-        return test_acc, test_num, 0
-#未改动
-    def train_metrics(self):
-        trainloader = self.load_train_data()
-        # self.model = self.load_model('model')
-        # self.model.to(self.device)
-        self.model.eval()
-        self.global_model.eval()
+            if self.train_slow:
+                time.sleep(0.1 * np.random.rand())
 
-        train_num = 0
-        losses = 0
-        with torch.no_grad():
-            for x, y in trainloader:
-                if type(x) == type([]):
-                    x[0] = x[0].to(self.device)
-                else:
-                    x = x.to(self.device)
-                y = y.to(self.device)
-                output = self.model(x)
-                output_g = self.global_model(x)
-                loss = self.loss(output, y) * self.alpha + self.KL(F.log_softmax(output, dim=1), F.softmax(output_g, dim=1)) * (1-self.alpha)
+    if self.learning_rate_decay:
+        self.learning_rate_scheduler.step()
+        self.learning_rate_scheduler_g.step()
 
-                train_num += y.shape[0]
-                losses += loss.item() * y.shape[0]
-
-        # self.model.cpu()
-        # self.save_model(self.model, 'model')
-
-        return losses, train_num
-
+    self.train_time_cost['num_rounds'] += 1
+    self.train_time_cost['total_cost'] += time.time() - start_time
