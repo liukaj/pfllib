@@ -17,7 +17,28 @@ class FedAvg(Server):
 
         # self.load_model()
         self.Budget = []
-
+    def plot_test_accuracy(self):
+        print("🔥 plot_test_accuracy CALLED")
+        """
+        server_obj: 你的 Server 类实例
+        """
+        if len(self.rs_test_acc) == 0:
+            print("还没有 test accuracy 数据")
+            return
+        
+        rounds = list(range(1, len(self.rs_test_acc) + 1))
+        acces = [float(a) for a in self.rs_test_acc]
+        print(acces)
+        plt.figure(figsize=(8,5))
+        plt.plot(rounds, acces, marker='o', linestyle='-', color='b', label='Test Accuracy')
+        plt.xlabel("Global Round")
+        plt.ylabel("Test Accuracy")
+        plt.title("Global Model Test Accuracy over Rounds")
+        plt.grid(True)
+        plt.legend()
+        plt.ylim(0, 1)  # 0-100%范围
+        plt.savefig("final_global_accuracy.png", dpi=300)
+        print("✅ Saved figure: final_global_accuracy.png")
 
     def train(self):
         for i in range(self.global_rounds+1):
@@ -49,6 +70,7 @@ class FedAvg(Server):
             if self.auto_break and self.check_done(acc_lss=[self.rs_test_acc], top_cnt=self.top_cnt):
                 break
 
+        self.plot_test_accuracy()
         print("\nBest accuracy.")
         # self.print_(max(self.rs_test_acc), max(
         #     self.rs_train_acc), min(self.rs_train_loss))
