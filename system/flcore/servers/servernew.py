@@ -130,39 +130,26 @@ class Fednew(Server):
         for client_model in self.uploaded_models:
             self.add_parameters(1/len(self.uploaded_models), client_model)
             
-    def update_avg_history_model(self):
+  def update_avg_history_model(self):
         current_state = self.global_model.state_dict()
         self.round += 1
-
         if self.avg_history_model_state is None:
             self.avg_history_model_state = copy.deepcopy(current_state)
             print("✅ Initialized avg_history_model_state")
         else:
             for key in current_state:
-                old = self.avg_history_model_state[key].clone()
                 self.avg_history_model_state[key] = (
-                    (self.avg_history_model_state[key] * (self.round - 1) + current_state[key])
-                    / self.round
-                )
-                if torch.any(old != self.avg_history_model_state[key]):
-                    print(f"✅ Updated key: {key} at round {self.round}")
-                
-    def get_avg_teacher_model(self):
+                    self.avg_history_model_state[key].float() * (self.round - 1) +
+                    current_state[key].float()
+                ) / self.round
+
+  def get_avg_teacher_model(self):
         model = copy.deepcopy(self.global_model)
         model.load_state_dict(self.avg_history_model_state)
         return model
-                
-    def send_teachermodels(self):
-         assert (len(self.clients) > 0)
-         if self.avg_history_model_state is None:
-             return  # 尚未有 teacher model，不发送
-         avg_teacher_model = self.get_avg_teacher_model()
-         
-         for client in self.clients:
-             start_time = time.time()
-             
-             client.set_teacher_parameters(avg_teacher_model)
-    
-             client.send_time_cost['num_rounds'] += 1
-             client.send_time_cost['total_cost'] += 2 * (time.time() - start_time)
-
+  def send_teachermodels(self):
+        if self.avg_history_model_state is None:
+            return
+        avg_teacher_model = self.get_avg_teacher_model()
+        for client in self.clients:
+            client.set_teacher_parameters(avg_teacher_model)
